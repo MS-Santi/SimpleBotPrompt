@@ -1,22 +1,13 @@
 "use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 var botbuilder_choices_1 = require("botbuilder-choices");
+var recognizers_text_suite_1 = require("@microsoft/recognizers-text-suite");
 var util_1 = require("util");
 var PromptType;
 (function (PromptType) {
     PromptType[PromptType["numberRange"] = 0] = "numberRange";
     PromptType[PromptType["dateRange"] = 1] = "dateRange";
-    PromptType[PromptType["choice"] = 2] = "choice";
+    PromptType[PromptType["options"] = 2] = "options";
     PromptType[PromptType["yesNo"] = 3] = "yesNo";
 })(PromptType = exports.PromptType || (exports.PromptType = {}));
 var PromptStatus;
@@ -29,34 +20,14 @@ var PromptStatus;
 })(PromptStatus = exports.PromptStatus || (exports.PromptStatus = {}));
 var Prompt = /** @class */ (function () {
     function Prompt() {
+        this.minNumber = null;
+        this.maxNumber = null;
+        this.minDate = null;
+        this.maxDate = null;
     }
     return Prompt;
 }());
 exports.Prompt = Prompt;
-var PromptRange = /** @class */ (function (_super) {
-    __extends(PromptRange, _super);
-    function PromptRange() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    return PromptRange;
-}(Prompt));
-exports.PromptRange = PromptRange;
-var PromptChoice = /** @class */ (function (_super) {
-    __extends(PromptChoice, _super);
-    function PromptChoice() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    return PromptChoice;
-}(Prompt));
-exports.PromptChoice = PromptChoice;
-var PromptRegex = /** @class */ (function (_super) {
-    __extends(PromptRegex, _super);
-    function PromptRegex() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    return PromptRegex;
-}(Prompt));
-exports.PromptRegex = PromptRegex;
 var PromptContext = /** @class */ (function () {
     function PromptContext(maxRetries, safeWords) {
         this.status = PromptStatus.noPrompt;
@@ -72,11 +43,13 @@ var PromptCycle = /** @class */ (function () {
      * @param maxRetries Number of times the prompt will be repeated before considered failed.
      * @param safeWords keywords that will stop the prompt cycle
      */
-    function PromptCycle(maxRetries, safeWords) {
+    function PromptCycle(maxRetries, safeWords, defaultCulture) {
         if (maxRetries === void 0) { maxRetries = 3; }
         if (safeWords === void 0) { safeWords = []; }
+        if (defaultCulture === void 0) { defaultCulture = recognizers_text_suite_1.Culture.English; }
         this.maxRetries = maxRetries;
         this.safeWords = safeWords;
+        this.defaultCulture = defaultCulture;
     }
     PromptCycle.prototype.receiveActivity = function (ctx, next) {
         // Initialize prompt state if not initialized
@@ -101,7 +74,7 @@ var PromptCycle = /** @class */ (function () {
             }
             else {
                 //TODO autoprocess reponse
-                var newPromptText = this.retryPromptText(ctx.state.conversation.prompt.activePrompt.currentAttemp);
+                var newPromptText = this.retryPromptText(ctx.state.conversation.prompt);
                 ctx.state.conversation.prompt.status = PromptStatus.inProgress;
                 ctx.reply(newPromptText);
             }
@@ -133,54 +106,136 @@ var PromptCycle = /** @class */ (function () {
     };
     PromptCycle.prototype.validatedResponses = function (utterance, prompt) {
         var validResponses;
+        var model;
         switch (prompt.activePrompt.type) {
             case PromptType.numberRange:
-                //no-op
+                model = recognizers_text_suite_1.NumberRecognizer.instance.getNumberModel(this.defaultCulture);
+                validResponses = this.checkNumericRange(prompt, model.parse(utterance));
                 break;
             case PromptType.dateRange:
-                //no-op
+                model = recognizers_text_suite_1.DateTimeRecognizer.instance.getDateTimeModel(this.defaultCulture);
+                validResponses = this.checkDateRange(prompt, model.parse(utterance));
                 break;
-            case PromptType.choice:
-            case PromptType.yesNo:
+            case PromptType.options:
                 validResponses = botbuilder_choices_1.recognizeChoices(utterance, prompt.activePrompt.choices);
+                break;
+            case PromptType.yesNo:
+                model = recognizers_text_suite_1.OptionsRecognizer.instance.getBooleanModel(this.defaultCulture);
+                validResponses = model.parse(utterance);
                 break;
         }
         return validResponses;
     };
-    PromptCycle.prototype.retryPromptText = function (attempt) {
-        return "didn't get that, pls try again";
+    PromptCycle.prototype.checkNumericRange = function (prompt, responses) {
+        var inRange = [];
+        responses.forEach(function (r) {
+            if ((util_1.isNull(prompt.activePrompt.minNumber) || r.resolution.value >= prompt.activePrompt.minNumber) &&
+                (util_1.isNull(prompt.activePrompt.maxNumber) || r.resolution.value <= prompt.activePrompt.maxNumber)) {
+                inRange.push(r);
+            }
+        });
+        return inRange;
     };
-    PromptCycle.promptForRange = function (ctx, promptText, minValue, maxValue) {
+    PromptCycle.prototype.checkDateRange = function (prompt, responses) {
+        var inRange = [];
+        responses.forEach(function (r) {
+            if (r.resolution.values[0].type === "date") {
+                if ((util_1.isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
+                    (util_1.isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
+                    inRange.push(r);
+                }
+            }
+        });
+        return inRange;
+    };
+    PromptCycle.prototype.retryPromptText = function (prompt) {
+        //TODO: need to internationalize this method
+        var msg = "";
+        switch (prompt.activePrompt.currentAttemp) {
+            case 0:
+            case 1:
+                msg = "I Didn't understand that, please, try again.";
+                break;
+            case 2:
+                msg = "I am sorry I am not understanding. " + this.validValuesText(prompt);
+                break;
+            default:
+                msg = "I am sorry. " + this.validValuesText(prompt);
+                break;
+        }
+        return msg;
+    };
+    PromptCycle.prototype.validValuesText = function (prompt) {
+        //TODO: need to internationalize this method    
+        var txt;
+        var first;
+        switch (prompt.activePrompt.type) {
+            case PromptType.yesNo:
+                txt = "Only yes/no - true/false responses are valid.";
+                break;
+            case PromptType.options:
+                txt = "Only one of the give choices are valid.";
+                break;
+            case PromptType.numberRange:
+                first = true;
+                txt = "Only a numeric value ";
+                if (!util_1.isNull(prompt.activePrompt.minNumber)) {
+                    txt += "greater than " + prompt.activePrompt.minNumber + " ";
+                    first = false;
+                }
+                if (!util_1.isNull(prompt.activePrompt.maxNumber)) {
+                    txt += (first ? "" : "and ") + ("less than " + prompt.activePrompt.maxNumber + " ");
+                }
+                txt += "is valid.";
+                break;
+            case PromptType.dateRange:
+                first = true;
+                txt = "Only a date ";
+                if (!util_1.isNull(prompt.activePrompt.minDate)) {
+                    txt += "later than " + prompt.activePrompt.minNumber + " ";
+                    first = false;
+                }
+                if (!util_1.isNull(prompt.activePrompt.maxDate)) {
+                    txt += (first ? "" : "and ") + ("earlier than " + prompt.activePrompt.maxDate + " ");
+                }
+                txt += "is valid.";
+                break;
+        }
+        return txt;
+    };
+    PromptCycle.promptForNumber = function (ctx, promptText, minValue, maxValue) {
+        if (minValue === void 0) { minValue = null; }
+        if (maxValue === void 0) { maxValue = null; }
         var rangePrompt;
-        if (typeof minValue === 'number') {
-            rangePrompt = new PromptRange();
-            rangePrompt.type = PromptType.numberRange;
-            if (minValue === undefined) {
-                minValue = Number.MIN_VALUE;
-            }
-            if (maxValue === undefined) {
-                maxValue = Number.MAX_VALUE;
-            }
-        }
-        else {
-            rangePrompt = new PromptRange();
-            rangePrompt.type = PromptType.dateRange;
-            if (minValue === undefined) {
-                minValue = (new Date(0));
-            }
-            if (maxValue === undefined) {
-                maxValue = (new Date(Number.MAX_VALUE));
-            }
-        }
+        rangePrompt = new Prompt();
+        rangePrompt.type = PromptType.numberRange;
+        //TODO: Check for min/max and swap if min > max
         rangePrompt.text = promptText;
         rangePrompt.currentAttemp = 0;
-        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+        rangePrompt.minNumber = minValue;
+        rangePrompt.maxNumber = maxValue;
         ctx.state.conversation.prompt.activePrompt = rangePrompt;
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
         ctx.reply(promptText);
     };
-    PromptCycle.promptForChoice = function (ctx, txt, choices) {
-        var prompt = new PromptChoice();
-        prompt.type = PromptType.choice;
+    PromptCycle.promptForDate = function (ctx, promptText, minValue, maxValue) {
+        if (minValue === void 0) { minValue = null; }
+        if (maxValue === void 0) { maxValue = null; }
+        var rangePrompt;
+        rangePrompt = new Prompt();
+        rangePrompt.type = PromptType.dateRange;
+        //TODO: check for min/max and swap if min > max
+        rangePrompt.text = promptText;
+        rangePrompt.currentAttemp = 0;
+        rangePrompt.minDate = minValue;
+        rangePrompt.maxDate = maxValue;
+        ctx.state.conversation.prompt.activePrompt = rangePrompt;
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+        ctx.reply(promptText);
+    };
+    PromptCycle.promptForOption = function (ctx, txt, choices) {
+        var prompt = new Prompt();
+        prompt.type = PromptType.options;
         prompt.text = txt;
         prompt.currentAttemp = 0;
         prompt.choices = choices;
@@ -189,16 +244,13 @@ var PromptCycle = /** @class */ (function () {
         ctx.reply(txt);
     };
     PromptCycle.promptForYesNo = function (ctx, txt) {
-        //TODO: Need to internationalize this function.
-        var c = [{
-                value: "yes",
-                synonyms: ["aha", "yep", "of course", "sure", "yeppers", "si"]
-            },
-            {
-                value: "no",
-                synonyms: ["not", "nuh-uh", "nope"]
-            }];
-        this.promptForChoice(ctx, txt, c);
+        var prompt = new Prompt();
+        prompt.type = PromptType.yesNo;
+        prompt.text = txt;
+        prompt.currentAttemp = 0;
+        ctx.state.conversation.prompt.activePrompt = prompt;
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+        ctx.reply(txt);
     };
     PromptCycle.currentStatus = function (ctx) {
         if (!util_1.isUndefined(ctx.state.conversation.prompt)) {

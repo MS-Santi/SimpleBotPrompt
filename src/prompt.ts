@@ -1,12 +1,13 @@
 import { Choice, recognizeChoices } from "botbuilder-choices";
-import { ModelResult } from "@microsoft/recognizers-text";
+import { NumberRecognizer, DateTimeRecognizer, OptionsRecognizer, Culture } from "@microsoft/recognizers-text-suite";
+import { ModelResult, IModel } from "@microsoft/recognizers-text";
 import { Middleware, Activity, ConversationResourceResponse } from "botbuilder";
-import { isUndefined } from "util";
+import { isUndefined, isNull } from "util";
 
 export enum PromptType {
     numberRange,
     dateRange,
-    choice,
+    options,
     yesNo
 }
 
@@ -18,27 +19,17 @@ export enum PromptStatus {
     canceled //One of the safe words have been invoked; terminal state
 }
 
-export abstract class Prompt {
+export class Prompt {
     text: string;
     type: PromptType;
     currentAttemp: Number;
     responses: ModelResult[];
-}
-
-export class PromptRange<T extends number | Date> extends Prompt {
-    //TODO: Change to property getter/setter to ensure that min <= max
-    min: T;
-    max: T;
-}
-
-export class PromptChoice extends Prompt {
-
+    minNumber: number = null;
+    maxNumber: number = null;
+    minDate: Date = null;
+    maxDate: Date = null;
     choices: Choice[];
-}
-
-export class PromptRegex extends Prompt {
-
-    regex: RegExp;
+    regExp: string;
 }
 
 export class PromptContext {
@@ -47,7 +38,7 @@ export class PromptContext {
     safeWords: string[];
     status: PromptStatus = PromptStatus.noPrompt;
 
-    constructor (maxRetries: number, safeWords: string[]) {
+    constructor(maxRetries: number, safeWords: string[]) {
         this.maxRetries = maxRetries;
         this.safeWords = safeWords;
     }
@@ -56,15 +47,17 @@ export class PromptContext {
 export class PromptCycle implements Middleware {
     private maxRetries: number;
     private safeWords: string[];
+    private defaultCulture: string;
 
     /**
      * Creates a new instance of an `PromptCycle` middleware.
      * @param maxRetries Number of times the prompt will be repeated before considered failed.
      * @param safeWords keywords that will stop the prompt cycle
      */
-    constructor(maxRetries: number = 3, safeWords: string[] = <string[]>[]) {
+    constructor(maxRetries: number = 3, safeWords: string[] = <string[]>[], defaultCulture = Culture.English) {
         this.maxRetries = maxRetries;
         this.safeWords = safeWords;
+        this.defaultCulture = defaultCulture;
     }
 
 
@@ -98,7 +91,7 @@ export class PromptCycle implements Middleware {
 
             else {
                 //TODO autoprocess reponse
-                let newPromptText: string = this.retryPromptText(ctx.state.conversation.prompt.activePrompt.currentAttemp);
+                let newPromptText: string = this.retryPromptText(ctx.state.conversation.prompt);
                 ctx.state.conversation.prompt.status = PromptStatus.inProgress;
                 ctx.reply(newPromptText);
             }
@@ -112,9 +105,9 @@ export class PromptCycle implements Middleware {
         // 
         //        if ([PromptStatus.canceled, PromptStatus.failed, PromptStatus.validated, PromptStatus.noPrompt]
         //                .filter(() => ctx.state.conversation.prompt.activePrompt.status).length > 0) {
-        if (ctx.state.conversation.prompt.status === PromptStatus.noPrompt  ||
+        if (ctx.state.conversation.prompt.status === PromptStatus.noPrompt ||
             ctx.state.conversation.prompt.status === PromptStatus.validated ||
-            ctx.state.conversation.prompt.status === PromptStatus.canceled  ||
+            ctx.state.conversation.prompt.status === PromptStatus.canceled ||
             ctx.state.conversation.prompt.status === PromptStatus.failed) {
 
             //reset prompt
@@ -136,75 +129,184 @@ export class PromptCycle implements Middleware {
     private validatedResponses(utterance: string, prompt: PromptContext): ModelResult[] {
 
         let validResponses: ModelResult[];
+        let model: IModel;
 
         switch (prompt.activePrompt.type) {
             case PromptType.numberRange:
-                //no-op
+                model = NumberRecognizer.instance.getNumberModel(this.defaultCulture)
+                validResponses = this.checkNumericRange(prompt, model.parse(utterance));
                 break;
             case PromptType.dateRange:
-                //no-op
+                model = DateTimeRecognizer.instance.getDateTimeModel(this.defaultCulture);
+                validResponses = this.checkDateRange(prompt, model.parse(utterance));
                 break;
-            case PromptType.choice:
+            case PromptType.options:
+                validResponses = recognizeChoices(utterance, prompt.activePrompt.choices);
+                break;
             case PromptType.yesNo:
-                validResponses = recognizeChoices(utterance, (<PromptChoice>prompt.activePrompt).choices);
+                model = OptionsRecognizer.instance.getBooleanModel(this.defaultCulture);
+                validResponses = model.parse(utterance);
                 break;
-
         }
 
         return validResponses;
     }
 
-    private retryPromptText(attempt: number): string {
-        return "didn't get that, pls try again";
+    private checkNumericRange(prompt: PromptContext, responses: ModelResult[]) {
+
+        let inRange: ModelResult[] = [];
+        responses.forEach((r) => {
+            if ((isNull(prompt.activePrompt.minNumber) || r.resolution.value >= prompt.activePrompt.minNumber) &&
+                (isNull(prompt.activePrompt.maxNumber) || r.resolution.value <= prompt.activePrompt.maxNumber)) {
+
+                inRange.push(r);
+            }
+        })
+
+        return inRange;
     }
 
-    public static promptForRange<T extends number | Date>(
+    private checkDateRange(prompt: PromptContext, responses: ModelResult[]) {
+
+        let inRange: ModelResult[] = [];
+        responses.forEach((r) => {
+            if (r.resolution.values[0].type === "date") {
+                if ((isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
+                    (isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
+
+                    inRange.push(r);
+                }
+            }
+        })
+
+        return inRange;
+    }
+
+
+    private retryPromptText(prompt: PromptContext): string {
+        //TODO: need to internationalize this method
+
+        let msg: string = "";
+
+        switch (prompt.activePrompt.currentAttemp) {
+            case 0:
+            case 1:
+                msg = "I Didn't understand that, please, try again.";
+                break;
+            case 2:
+                msg = "I am sorry I am not understanding. " + this.validValuesText(prompt);
+
+                break;
+            default:
+                msg = "I am sorry. " + this.validValuesText(prompt);
+                break
+        }
+        return msg;
+    }
+
+    private validValuesText(prompt: PromptContext): string {
+        //TODO: need to internationalize this method    
+        let txt: string;
+        let first: boolean;
+
+        switch (prompt.activePrompt.type) {
+            case PromptType.yesNo:
+                txt = "Only yes/no - true/false responses are valid.";
+                break;
+            case PromptType.options:
+                txt = "Only one of the give choices are valid.";
+                break;
+            case PromptType.numberRange:
+                first = true;
+                txt = "Only a numeric value ";
+                if (!isNull(prompt.activePrompt.minNumber)) {
+                    txt += `greater than ${prompt.activePrompt.minNumber} `;
+                    first = false;
+                }
+                if (!isNull(prompt.activePrompt.maxNumber)) {
+
+                    txt += (first ? "" : "and ") + `less than ${prompt.activePrompt.maxNumber} `;
+                }
+                txt += "is valid.";
+
+                break;
+            case PromptType.dateRange:
+                first = true;
+                txt = "Only a date ";
+                if (!isNull(prompt.activePrompt.minDate)) {
+                    txt += `later than ${prompt.activePrompt.minNumber} `;
+                    first = false;
+                }
+                if (!isNull(prompt.activePrompt.maxDate)) {
+
+                    txt += (first ? "" : "and ") + `earlier than ${prompt.activePrompt.maxDate} `;
+                }
+                txt += "is valid.";
+                break;
+        }
+
+        return txt;
+    }
+    public static promptForNumber(
         ctx: BotContext,
         promptText: string,
-        minValue?: undefined | T,
-        maxValue?: undefined | T) {
+        minValue: number = null,
+        maxValue: number = null) {
 
-        let rangePrompt: PromptRange<number | Date>;
+        let rangePrompt: Prompt;
 
-        if (typeof minValue === 'number') {
-            rangePrompt = new PromptRange<number>();
-            rangePrompt.type = PromptType.numberRange;
-            if (minValue === undefined) {
-                minValue = <T>Number.MIN_VALUE;
-            }
-            if (maxValue === undefined) {
-                maxValue = <T>Number.MAX_VALUE;
-            }
-        }
-        else {
-            rangePrompt = new PromptRange<Date>();
-            rangePrompt.type = PromptType.dateRange;
-            if (minValue === undefined) {
-                minValue = <T>(new Date(0));
-            }
-            if (maxValue === undefined) {
-                maxValue = <T>(new Date(Number.MAX_VALUE));
-            }
-        }
+
+        rangePrompt = new Prompt();
+        rangePrompt.type = PromptType.numberRange;
+
+        //TODO: Check for min/max and swap if min > max
 
         rangePrompt.text = promptText;
         rangePrompt.currentAttemp = 0;
-        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+        rangePrompt.minNumber = minValue;
+        rangePrompt.maxNumber = maxValue;
         ctx.state.conversation.prompt.activePrompt = rangePrompt;
+
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+
+        ctx.reply(promptText);
+    }
+
+
+    public static promptForDate(
+        ctx: BotContext,
+        promptText: string,
+        minValue: Date = null,
+        maxValue: Date = null) {
+
+        let rangePrompt: Prompt;
+
+
+        rangePrompt = new Prompt();
+        rangePrompt.type = PromptType.dateRange;
+
+        //TODO: check for min/max and swap if min > max
+
+        rangePrompt.text = promptText;
+        rangePrompt.currentAttemp = 0;
+        rangePrompt.minDate = minValue;
+        rangePrompt.maxDate = maxValue;
+        ctx.state.conversation.prompt.activePrompt = rangePrompt;
+
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
 
         ctx.reply(promptText);
 
     }
 
-    public static promptForChoice(
+    public static promptForOption(
         ctx: BotContext,
         txt: string,
         choices: Choice[]) {
 
+        let prompt: Prompt = new Prompt();
 
-        let prompt: PromptChoice = new PromptChoice();
-
-        prompt.type = PromptType.choice;
+        prompt.type = PromptType.options;
         prompt.text = txt;
         prompt.currentAttemp = 0;
         prompt.choices = choices;
@@ -219,18 +321,17 @@ export class PromptCycle implements Middleware {
         ctx: BotContext,
         txt: string) {
 
-            //TODO: Need to internationalize this function.
 
-        let c: Choice[] = [{
-            value: "yes",
-            synonyms: ["aha", "yep", "of course", "sure", "yeppers", "si"]
-        },
-        {
-            value: "no",
-            synonyms: ["not", "nuh-uh", "nope"]
-        }]
+        let prompt: Prompt = new Prompt();
 
-        this.promptForChoice(ctx, txt, c);
+        prompt.type = PromptType.yesNo;
+        prompt.text = txt;
+        prompt.currentAttemp = 0;
+        ctx.state.conversation.prompt.activePrompt = prompt;
+
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+
+        ctx.reply(txt);
     }
 
     public static currentStatus(ctx: BotContext): PromptStatus {
@@ -242,4 +343,3 @@ export class PromptCycle implements Middleware {
         }
     }
 }
-

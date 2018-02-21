@@ -3,8 +3,8 @@ import { ConsoleAdapter } from "botbuilder-node";
 import { DateTimeRecognizer, NumberRecognizer, NumberWithUnitRecognizer, OptionsRecognizer, Culture } from "@microsoft/recognizers-text-suite";
 import { Recognizer, IModel, ModelResult } from "@microsoft/recognizers-text"
 import { recognizeChoices, Choice } from 'botbuilder-choices';
-import * as choicePrompt from './choicePrompt';
 import { PromptCycle, PromptStatus } from './prompt';
+import { isUndefined } from 'util';
 
 const MAX_RETRIES: number = 3;  //must be greater than 0
 
@@ -23,32 +23,41 @@ bot.onReceive((context) => {
         switch (cs) {
             case PromptStatus.noPrompt:
 
-                PromptCycle.promptForYesNo(context, "Do you like icecream");
+                PromptCycle.promptForDate(context, "When were you born?");
 
-                 break;
+                break;
             case PromptStatus.canceled:
                 context.reply("you canceled!");
 
                 break;
             case PromptStatus.failed:
                 context.reply("sorry you are having issues responding");
-         
+
                 break;
             case PromptStatus.inProgress:
                 context.reply("In progress... why am I here?");
                 break;
 
             case PromptStatus.validated:
-                let response: string = (<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.value;
-                context.reply(`you successfully replied "${response}" to the question. Now onto greater things...`);
+                let response: string;
+                if (!isUndefined((<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.value)) {
+                    response = (<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.value;
+                }
+                else if (!isUndefined((<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.values)) {
+                        response = (<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.values[0].value;
+                    }
+                    else {
+                        response = "[?]";
+                    }
+                    context.reply(`you successfully replied "${response}" to the question. Now onto greater things...`);
 
-                break;
+                    break;
+                }
         }
-    }
     else {
-        if (context.request.type === 'conversationUpdate' && context.request.membersAdded[0].name === 'User') {
-            debugger;
-        }
+            if (context.request.type === 'conversationUpdate' && context.request.membersAdded[0].name === 'User') {
+                debugger;
+            }
 
-    }
-});
+        }
+    });
