@@ -1,0 +1,20 @@
+{
+  "name": "hacktests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./dist/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@microsoft/recognizers-text-suite": "^1.0.0-rc.32.0",
+    "@types/node": "^9.4.6",
+    "botbuilder": "^4.0.0-m1.4",
+    "botbuilder-choices": "^4.0.0-m1.2",
+    "botbuilder-node": "^4.0.0-m1.2",
+    "node": "^9.5.0",
+    "nodemon": "^1.15.1"
+  }
+}
