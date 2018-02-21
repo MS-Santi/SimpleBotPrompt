@@ -81,11 +81,11 @@ export class PromptCycle implements Middleware {
                 return next();
             }
 
-            let validresponses: ModelResult[] = new Array<ModelResult>();
+            let validResponses: ModelResult[] = this.validatedResponses(ctx.request.text, ctx.state.conversation.prompt);
 
-            if (this.isValid(ctx.request.text, ctx.state.conversation.prompt, validresponses)) {
+            if (validResponses.length > 0) {
                 ctx.state.conversation.prompt.status = PromptStatus.validated;
-                ctx.state.conversation.prompt.validResponses = validresponses;
+                ctx.state.conversation.prompt.activePrompt.responses = validResponses;
 
                 return next();
             }
@@ -119,6 +119,7 @@ export class PromptCycle implements Middleware {
 
             //reset prompt
             ctx.state.conversation.prompt.activePrompt = undefined;
+            ctx.state.conversation.prompt.status = PromptStatus.noPrompt;
         }
         return next();
     }
@@ -132,7 +133,9 @@ export class PromptCycle implements Middleware {
         return false;
     }
 
-    private isValid(utterance: string, prompt: PromptContext, validResponses: ModelResult[]): boolean {
+    private validatedResponses(utterance: string, prompt: PromptContext): ModelResult[] {
+
+        let validResponses: ModelResult[];
 
         switch (prompt.activePrompt.type) {
             case PromptType.numberRange:
@@ -148,7 +151,7 @@ export class PromptCycle implements Middleware {
 
         }
 
-        return (validResponses.length > 0);
+        return validResponses;
     }
 
     private retryPromptText(attempt: number): string {
@@ -238,8 +241,5 @@ export class PromptCycle implements Middleware {
             return PromptStatus.noPrompt;
         }
     }
-
-
-
 }
 

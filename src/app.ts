@@ -39,7 +39,8 @@ bot.onReceive((context) => {
                 break;
 
             case PromptStatus.validated:
-                context.reply("you successfully replied with a question. Now onto greater things...");
+                let response: string = (<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.value;
+                context.reply(`you successfully replied "${response}" to the question. Now onto greater things...`);
 
                 break;
         }

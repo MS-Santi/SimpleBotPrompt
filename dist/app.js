@@ -26,7 +26,8 @@ bot.onReceive(function (context) {
                 context.reply("In progress... why am I here?");
                 break;
             case prompt_1.PromptStatus.validated:
-                context.reply("you successfully replied with a question. Now onto greater things...");
+                var response = context.state.conversation.prompt.activePrompt.responses[0].resolution.value;
+                context.reply("you successfully replied \"" + response + "\" to the question. Now onto greater things...");
                 break;
         }
     }

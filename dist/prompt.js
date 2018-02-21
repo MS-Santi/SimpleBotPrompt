@@ -88,10 +88,10 @@ var PromptCycle = /** @class */ (function () {
                 ctx.state.conversation.prompt.status = PromptStatus.canceled;
                 return next();
             }
-            var validresponses = new Array();
-            if (this.isValid(ctx.request.text, ctx.state.conversation.prompt, validresponses)) {
+            var validResponses = this.validatedResponses(ctx.request.text, ctx.state.conversation.prompt);
+            if (validResponses.length > 0) {
                 ctx.state.conversation.prompt.status = PromptStatus.validated;
-                ctx.state.conversation.prompt.validResponses = validresponses;
+                ctx.state.conversation.prompt.activePrompt.responses = validResponses;
                 return next();
             }
             ctx.state.conversation.prompt.activePrompt.currentAttemp++;
@@ -120,6 +120,7 @@ var PromptCycle = /** @class */ (function () {
             ctx.state.conversation.prompt.status === PromptStatus.failed) {
             //reset prompt
             ctx.state.conversation.prompt.activePrompt = undefined;
+            ctx.state.conversation.prompt.status = PromptStatus.noPrompt;
         }
         return next();
     };
@@ -130,7 +131,8 @@ var PromptCycle = /** @class */ (function () {
         }
         return false;
     };
-    PromptCycle.prototype.isValid = function (utterance, prompt, validResponses) {
+    PromptCycle.prototype.validatedResponses = function (utterance, prompt) {
+        var validResponses;
         switch (prompt.activePrompt.type) {
             case PromptType.numberRange:
                 //no-op
@@ -143,7 +145,7 @@ var PromptCycle = /** @class */ (function () {
                 validResponses = botbuilder_choices_1.recognizeChoices(utterance, prompt.activePrompt.choices);
                 break;
         }
-        return (validResponses.length > 0);
+        return validResponses;
     };
     PromptCycle.prototype.retryPromptText = function (attempt) {
         return "didn't get that, pls try again";
