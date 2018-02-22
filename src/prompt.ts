@@ -12,11 +12,11 @@ export enum PromptType {
 }
 
 export enum PromptStatus {
-    noPrompt, //No prompt has been setup; Initial state
+    noPrompt,   //No prompt has been setup; Initial state
     inProgress, //A prompt has been setup; we are processing responses
-    validated, //A valid input has been provided; terminal state
-    failed, //The retry times has been reached; terminal state
-    canceled //One of the safe words have been invoked; terminal state
+    validated,  //A valid input has been provided; terminal state
+    failed,     //The retry times has been reached; terminal state
+    canceled    //One of the safe words have been invoked; terminal state
 }
 
 export class Choice {
@@ -108,9 +108,7 @@ export class PromptCycle implements Middleware {
     }
 
     public postActivity(ctx: BotContext, activities: Partial<Activity>[], next: () => Promise<ConversationResourceResponse[]>): Promise<ConversationResourceResponse[]> {
-        // 
-        //        if ([PromptStatus.canceled, PromptStatus.failed, PromptStatus.validated, PromptStatus.noPrompt]
-        //                .filter(() => ctx.state.conversation.prompt.activePrompt.status).length > 0) {
+
         if (ctx.state.conversation.prompt.status === PromptStatus.noPrompt ||
             ctx.state.conversation.prompt.status === PromptStatus.validated ||
             ctx.state.conversation.prompt.status === PromptStatus.canceled ||
