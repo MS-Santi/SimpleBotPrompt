@@ -6,14 +6,25 @@
   "homepage": "https://github.com/MS-Santi/SimpleBotPrompt",
   "keywords": [
     "BotBuilderV4",
+    "BotBuilder",
+    "bots",
+    "chatbots",
     "Microsoft"
   ],
-  "main": "./dist/sample/app.js",
+  "bugs": {
+    "url": "https://github.com/MS-Santi/SimpleBotPrompt/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MS-Santi/SimpleBotPrompt"
+  },
+  "main": "./lib/prompt.js",
   "scripts": {
     "prepublishOnly": "npm run compile",
     "clean": "rm -rf dist",
     "compile": "npm run clean && tsc -p .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
   },
   "license": "SEE LICENSE IN LICENSE",
   "dependencies": {

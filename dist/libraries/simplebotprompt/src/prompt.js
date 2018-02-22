@@ -12,10 +12,10 @@ var PromptType;
 })(PromptType = exports.PromptType || (exports.PromptType = {}));
 var PromptStatus;
 (function (PromptStatus) {
-    PromptStatus[PromptStatus["noPrompt"] = 0] = "noPrompt";
-    PromptStatus[PromptStatus["inProgress"] = 1] = "inProgress";
-    PromptStatus[PromptStatus["validated"] = 2] = "validated";
-    PromptStatus[PromptStatus["failed"] = 3] = "failed";
+    PromptStatus[PromptStatus["noPrompt"] = 0] = "noPrompt"; //No prompt has been setup; Initial state
+    PromptStatus[PromptStatus["inProgress"] = 1] = "inProgress"; //A prompt has been setup; we are processing responses
+    PromptStatus[PromptStatus["validated"] = 2] = "validated"; //A valid input has been provided; terminal state
+    PromptStatus[PromptStatus["failed"] = 3] = "failed"; //The retry times has been reached; terminal state
     PromptStatus[PromptStatus["canceled"] = 4] = "canceled"; //One of the safe words have been invoked; terminal state
 })(PromptStatus = exports.PromptStatus || (exports.PromptStatus = {}));
 var Choice = /** @class */ (function () {
@@ -217,7 +217,7 @@ var PromptCycle = /** @class */ (function () {
             if (!util_1.isNull(item)) {
                 var mr = new recognizers_text_1.ModelResult();
                 mr.text = item.value;
-                mr.typeName = "choices";
+                mr.typeName = 'choices';
                 mr.resolution = { value: item.value };
                 results.push(mr);
             }
@@ -237,7 +237,7 @@ var PromptCycle = /** @class */ (function () {
     PromptCycle.prototype.checkDateRange = function (prompt, responses) {
         var inRange = [];
         responses.forEach(function (r) {
-            if (r.resolution.values[0].type === "date") {
+            if (r.resolution.values[0].type === 'date') {
                 if ((util_1.isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
                     (util_1.isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
                     inRange.push(r);
@@ -248,60 +248,60 @@ var PromptCycle = /** @class */ (function () {
     };
     PromptCycle.prototype.retryPromptText = function (prompt) {
         //TODO: need to internationalize this method
-        var msg = "";
+        var msg = '';
         switch (prompt.activePrompt.currentAttemp) {
             case 0:
             case 1:
-                msg = "I Didn't understand that, please, try again.";
+                msg = 'I Didn\'t understand that, please, try again.';
                 break;
             case 2:
-                msg = "I am sorry I am not understanding. " + this.validValuesText(prompt);
+                msg = 'I am sorry I am not understanding. ' + this.validValuesText(prompt);
                 break;
             default:
-                msg = "I am sorry. " + this.validValuesText(prompt);
+                msg = 'I am sorry. ' + this.validValuesText(prompt);
                 break;
         }
         return msg;
     };
     PromptCycle.prototype.validValuesText = function (prompt) {
         //TODO: need to internationalize this method    
-        var txt = "";
+        var txt = '';
         var first;
         switch (prompt.activePrompt.type) {
             case PromptType.yesNo:
-                txt = "Only yes/no - true/false responses are valid.";
+                txt = 'Only yes/no - true/false responses are valid.';
                 break;
             case PromptType.options:
                 first = true;
-                txt = "Valid options are: [";
+                txt = 'Valid options are: [';
                 prompt.activePrompt.choices.forEach(function (c) {
-                    txt += [(first ? "'" : "', '") + c.value, first = false][0];
+                    txt += [(first ? '"' : '", "') + c.value, first = false][0];
                 });
-                txt += "'].";
+                txt += '"].';
                 break;
             case PromptType.numberRange:
                 first = true;
-                txt = "Only a numeric value ";
+                txt = 'Only a numeric value ';
                 if (!util_1.isNull(prompt.activePrompt.minNumber)) {
                     txt += "greater than " + prompt.activePrompt.minNumber + " ";
                     first = false;
                 }
                 if (!util_1.isNull(prompt.activePrompt.maxNumber)) {
-                    txt += (first ? "" : "and ") + ("less than " + prompt.activePrompt.maxNumber + " ");
+                    txt += (first ? '' : 'and ') + ("less than " + prompt.activePrompt.maxNumber + " ");
                 }
-                txt += "is valid.";
+                txt += 'is valid.';
                 break;
             case PromptType.dateRange:
                 first = true;
-                txt = "Only a date ";
+                txt = 'Only a date ';
                 if (!util_1.isNull(prompt.activePrompt.minDate)) {
                     txt += "later than " + prompt.activePrompt.minNumber + " ";
                     first = false;
                 }
                 if (!util_1.isNull(prompt.activePrompt.maxDate)) {
-                    txt += (first ? "" : "and ") + ("earlier than " + prompt.activePrompt.maxDate + " ");
+                    txt += (first ? '' : 'and ') + ("earlier than " + prompt.activePrompt.maxDate + " ");
                 }
-                txt += "is valid.";
+                txt += 'is valid.';
                 break;
         }
         return txt;
