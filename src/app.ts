@@ -23,7 +23,7 @@ bot.onReceive((context) => {
         switch (cs) {
             case PromptStatus.noPrompt:
                 let c: Choice[] = [{ value: "yesterday", synonyms: ["ier", "ayer"] }, { value: "today", synonyms: ["hoy", "ahora"] }]
-                PromptCycle.promptForOption(context, "When were you born?", c);
+                PromptCycle.promptForNumber(context, "How old are you",1, 120);
 
                 break;
             case PromptStatus.canceled:

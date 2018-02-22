@@ -50,6 +50,7 @@ var PromptCycle = /** @class */ (function () {
      * Creates a new instance of an `PromptCycle` middleware.
      * @param maxRetries Number of times the prompt will be repeated before considered failed.
      * @param safeWords keywords that will stop the prompt cycle
+     * @param defaultCulture culture used for evaluation of responses
      */
     function PromptCycle(maxRetries, safeWords, defaultCulture) {
         if (maxRetries === void 0) { maxRetries = 3; }

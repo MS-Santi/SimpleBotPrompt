@@ -16,7 +16,7 @@ bot.onReceive(function (context) {
         switch (cs) {
             case prompt_1.PromptStatus.noPrompt:
                 var c = [{ value: "yesterday", synonyms: ["ier", "ayer"] }, { value: "today", synonyms: ["hoy", "ahora"] }];
-                prompt_1.PromptCycle.promptForOption(context, "When were you born?", c);
+                prompt_1.PromptCycle.promptForNumber(context, "How old are you", 1, 120);
                 break;
             case prompt_1.PromptStatus.canceled:
                 context.reply("you canceled!");

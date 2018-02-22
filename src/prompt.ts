@@ -58,13 +58,14 @@ export class PromptCycle implements Middleware {
      * Creates a new instance of an `PromptCycle` middleware.
      * @param maxRetries Number of times the prompt will be repeated before considered failed.
      * @param safeWords keywords that will stop the prompt cycle
+     * @param defaultCulture culture used for evaluation of responses
      */
+
     constructor(maxRetries: number = 3, safeWords: string[] = <string[]>[], defaultCulture = Culture.English) {
         this.maxRetries = maxRetries;
         this.safeWords = safeWords;
         this.defaultCulture = defaultCulture;
     }
-
 
     public receiveActivity(ctx: BotContext, next: () => Promise<void>): Promise<void> {
 
