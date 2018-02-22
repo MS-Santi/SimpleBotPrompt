@@ -13,7 +13,6 @@ context.status.conversation.prompt
 This location is persisted with the rest of the state for the conversation. It should be considered read-only so as not to interfere with the prompt cycle.
 
 ##Usage
-
 It is simple to create a prompt. There are three steps:
 1.- Register the PromptCycle middleware component.
 2.- Create a Prompt
