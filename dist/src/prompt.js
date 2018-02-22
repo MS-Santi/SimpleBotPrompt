@@ -1,6 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-//import { Choice, recognizeChoices } from "botbuilder-choices";
 var recognizers_text_suite_1 = require("@microsoft/recognizers-text-suite");
 var recognizers_text_1 = require("@microsoft/recognizers-text");
 var util_1 = require("util");
@@ -266,14 +265,19 @@ var PromptCycle = /** @class */ (function () {
     };
     PromptCycle.prototype.validValuesText = function (prompt) {
         //TODO: need to internationalize this method    
-        var txt;
+        var txt = "";
         var first;
         switch (prompt.activePrompt.type) {
             case PromptType.yesNo:
                 txt = "Only yes/no - true/false responses are valid.";
                 break;
             case PromptType.options:
-                txt = "Only one of the given choices is valid.";
+                first = true;
+                txt = "Valid options are: [";
+                prompt.activePrompt.choices.forEach(function (c) {
+                    txt += [(first ? "'" : "', '") + c.value, first = false][0];
+                });
+                txt += "'].";
                 break;
             case PromptType.numberRange:
                 first = true;

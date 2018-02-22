@@ -1,7 +1,7 @@
-//import { Choice, recognizeChoices } from "botbuilder-choices";
+
+import { Middleware, Activity, ConversationResourceResponse } from "botbuilder";
 import { NumberRecognizer, DateTimeRecognizer, OptionsRecognizer, Culture } from "@microsoft/recognizers-text-suite";
 import { ModelResult, IModel } from "@microsoft/recognizers-text";
-import { Middleware, Activity, ConversationResourceResponse } from "botbuilder";
 import { isUndefined, isNull } from "util";
 
 export enum PromptType {
@@ -122,7 +122,6 @@ export class PromptCycle implements Middleware {
         }
         return next();
     }
-
 
     public static promptForNumber(
         ctx: BotContext,
@@ -350,7 +349,7 @@ export class PromptCycle implements Middleware {
 
     private validValuesText(prompt: PromptContext): string {
         //TODO: need to internationalize this method    
-        let txt: string;
+        let txt: string = "";
         let first: boolean;
 
         switch (prompt.activePrompt.type) {
@@ -358,7 +357,12 @@ export class PromptCycle implements Middleware {
                 txt = "Only yes/no - true/false responses are valid.";
                 break;
             case PromptType.options:
-                txt = "Only one of the given choices is valid.";
+                first = true;
+                txt = "Valid options are: [";
+                prompt.activePrompt.choices.forEach((c) => {
+                    txt += [(first ? "'" : "', '") + c.value, first = false][0];
+                })
+                txt += "'].";
                 break;
             case PromptType.numberRange:
                 first = true;

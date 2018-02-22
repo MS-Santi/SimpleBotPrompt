@@ -2,7 +2,7 @@
   "name": "simplebotprompt",
   "version": "0.0.1",
   "description": "",
-  "main": "./dist/app.js",
+  "main": "./dist/sample/app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
