@@ -1,4 +1,4 @@
-import { Choice, recognizeChoices } from "botbuilder-choices";
+//import { Choice, recognizeChoices } from "botbuilder-choices";
 import { NumberRecognizer, DateTimeRecognizer, OptionsRecognizer, Culture } from "@microsoft/recognizers-text-suite";
 import { ModelResult, IModel } from "@microsoft/recognizers-text";
 import { Middleware, Activity, ConversationResourceResponse } from "botbuilder";
@@ -17,6 +17,11 @@ export enum PromptStatus {
     validated, //A valid input has been provided; terminal state
     failed, //The retry times has been reached; terminal state
     canceled //One of the safe words have been invoked; terminal state
+}
+
+export class Choice {
+    value: string;
+    synonyms: string[] = <string[]>[];
 }
 
 export class Prompt {
@@ -117,136 +122,7 @@ export class PromptCycle implements Middleware {
         return next();
     }
 
-    private safeWordInvoked(utterance: string): boolean {
-        utterance = utterance.toLowerCase().trim();
 
-        if ((this.safeWords.filter(word => word === utterance).length) > 0) {
-            return true;
-        }
-        return false;
-    }
-
-    private validatedResponses(utterance: string, prompt: PromptContext): ModelResult[] {
-
-        let validResponses: ModelResult[];
-        let model: IModel;
-
-        switch (prompt.activePrompt.type) {
-            case PromptType.numberRange:
-                model = NumberRecognizer.instance.getNumberModel(this.defaultCulture)
-                validResponses = this.checkNumericRange(prompt, model.parse(utterance));
-                break;
-            case PromptType.dateRange:
-                model = DateTimeRecognizer.instance.getDateTimeModel(this.defaultCulture);
-                validResponses = this.checkDateRange(prompt, model.parse(utterance));
-                break;
-            case PromptType.options:
-                validResponses = recognizeChoices(utterance, prompt.activePrompt.choices);
-                break;
-            case PromptType.yesNo:
-                model = OptionsRecognizer.instance.getBooleanModel(this.defaultCulture);
-                validResponses = model.parse(utterance);
-                break;
-        }
-
-        return validResponses;
-    }
-
-    private checkNumericRange(prompt: PromptContext, responses: ModelResult[]) {
-
-        let inRange: ModelResult[] = [];
-        responses.forEach((r) => {
-            if ((isNull(prompt.activePrompt.minNumber) || r.resolution.value >= prompt.activePrompt.minNumber) &&
-                (isNull(prompt.activePrompt.maxNumber) || r.resolution.value <= prompt.activePrompt.maxNumber)) {
-
-                inRange.push(r);
-            }
-        })
-
-        return inRange;
-    }
-
-    private checkDateRange(prompt: PromptContext, responses: ModelResult[]) {
-
-        let inRange: ModelResult[] = [];
-        responses.forEach((r) => {
-            if (r.resolution.values[0].type === "date") {
-                if ((isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
-                    (isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
-
-                    inRange.push(r);
-                }
-            }
-        })
-
-        return inRange;
-    }
-
-
-    private retryPromptText(prompt: PromptContext): string {
-        //TODO: need to internationalize this method
-
-        let msg: string = "";
-
-        switch (prompt.activePrompt.currentAttemp) {
-            case 0:
-            case 1:
-                msg = "I Didn't understand that, please, try again.";
-                break;
-            case 2:
-                msg = "I am sorry I am not understanding. " + this.validValuesText(prompt);
-
-                break;
-            default:
-                msg = "I am sorry. " + this.validValuesText(prompt);
-                break
-        }
-        return msg;
-    }
-
-    private validValuesText(prompt: PromptContext): string {
-        //TODO: need to internationalize this method    
-        let txt: string;
-        let first: boolean;
-
-        switch (prompt.activePrompt.type) {
-            case PromptType.yesNo:
-                txt = "Only yes/no - true/false responses are valid.";
-                break;
-            case PromptType.options:
-                txt = "Only one of the give choices are valid.";
-                break;
-            case PromptType.numberRange:
-                first = true;
-                txt = "Only a numeric value ";
-                if (!isNull(prompt.activePrompt.minNumber)) {
-                    txt += `greater than ${prompt.activePrompt.minNumber} `;
-                    first = false;
-                }
-                if (!isNull(prompt.activePrompt.maxNumber)) {
-
-                    txt += (first ? "" : "and ") + `less than ${prompt.activePrompt.maxNumber} `;
-                }
-                txt += "is valid.";
-
-                break;
-            case PromptType.dateRange:
-                first = true;
-                txt = "Only a date ";
-                if (!isNull(prompt.activePrompt.minDate)) {
-                    txt += `later than ${prompt.activePrompt.minNumber} `;
-                    first = false;
-                }
-                if (!isNull(prompt.activePrompt.maxDate)) {
-
-                    txt += (first ? "" : "and ") + `earlier than ${prompt.activePrompt.maxDate} `;
-                }
-                txt += "is valid.";
-                break;
-        }
-
-        return txt;
-    }
     public static promptForNumber(
         ctx: BotContext,
         promptText: string,
@@ -271,7 +147,6 @@ export class PromptCycle implements Middleware {
 
         ctx.reply(promptText);
     }
-
 
     public static promptForDate(
         ctx: BotContext,
@@ -342,4 +217,178 @@ export class PromptCycle implements Middleware {
             return PromptStatus.noPrompt;
         }
     }
+
+    public static simpleResponse(ctx: BotContext): any {
+
+        let response: any = null;
+
+        if (!isUndefined((<ModelResult>ctx.state.conversation.prompt.activePrompt.responses[0]).resolution.value)) {
+            response = (<ModelResult>ctx.state.conversation.prompt.activePrompt.responses[0]).resolution.value;
+        }
+        else if (!isUndefined((<ModelResult>ctx.state.conversation.prompt.activePrompt.responses[0]).resolution.values)) {
+            response = (<ModelResult>ctx.state.conversation.prompt.activePrompt.responses[0]).resolution.values[0].value;
+        }
+
+        return response;
+    }
+
+    private safeWordInvoked(utterance: string): boolean {
+
+        if ((this.safeWords.filter(word => word.toLowerCase().trim() === utterance.toLowerCase().trim()).length) > 0) {
+            return true;
+        }
+        return false;
+    }
+
+    private validatedResponses(utterance: string, prompt: PromptContext): ModelResult[] {
+
+        let validResponses: ModelResult[];
+        let model: IModel;
+
+        switch (prompt.activePrompt.type) {
+            case PromptType.numberRange:
+                model = NumberRecognizer.instance.getNumberModel(this.defaultCulture)
+                validResponses = this.checkNumericRange(prompt, model.parse(utterance));
+                break;
+            case PromptType.dateRange:
+                model = DateTimeRecognizer.instance.getDateTimeModel(this.defaultCulture);
+                validResponses = this.checkDateRange(prompt, model.parse(utterance));
+                break;
+            case PromptType.options:
+                validResponses = this.recognizeChoices(utterance, prompt.activePrompt.choices);
+                break;
+            case PromptType.yesNo:
+                model = OptionsRecognizer.instance.getBooleanModel(this.defaultCulture);
+                validResponses = model.parse(utterance);
+                break;
+        }
+
+        return validResponses;
+    }
+
+    private recognizeChoices(response: string, choices: Choice[]): ModelResult[] {
+
+
+        let results: ModelResult[] = <ModelResult[]>[];
+
+        let matches = choices.map((item: Choice) => {
+            if (response.toLowerCase().trim().indexOf(item.value.toLowerCase().trim()) >= 0 ||
+                item.synonyms.map((syn: string) => {
+                    return response.toLowerCase().trim().indexOf(syn.toLowerCase().trim()) >= 0
+                }).some((item: boolean) => {
+                    return item;
+                })) {
+                return item;
+            }
+            return null;
+        });
+
+        matches.forEach((item) => {
+            if (!isNull(item)) {
+                let mr = new ModelResult();
+                mr.text = item.value;
+                mr.typeName = "choices";
+                mr.resolution = { value: item.value };
+
+                results.push(mr);
+            }
+        })
+        return results;
+    }
+
+    private checkNumericRange(prompt: PromptContext, responses: ModelResult[]) {
+
+        let inRange: ModelResult[] = [];
+        responses.forEach((r) => {
+            if ((isNull(prompt.activePrompt.minNumber) || r.resolution.value >= prompt.activePrompt.minNumber) &&
+                (isNull(prompt.activePrompt.maxNumber) || r.resolution.value <= prompt.activePrompt.maxNumber)) {
+
+                inRange.push(r);
+            }
+        })
+
+        return inRange;
+    }
+
+    private checkDateRange(prompt: PromptContext, responses: ModelResult[]) {
+
+        let inRange: ModelResult[] = [];
+        responses.forEach((r) => {
+            if (r.resolution.values[0].type === "date") { //ignore results that render a Period. Only accept dates.
+                if ((isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
+                    (isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
+
+                    inRange.push(r);
+                }
+            }
+        })
+
+        return inRange;
+    }
+
+    private retryPromptText(prompt: PromptContext): string {
+        //TODO: need to internationalize this method
+
+        let msg: string = "";
+
+        switch (prompt.activePrompt.currentAttemp) {
+            case 0:
+            case 1:
+                msg = "I Didn't understand that, please, try again.";
+                break;
+            case 2:
+                msg = "I am sorry I am not understanding. " + this.validValuesText(prompt);
+
+                break;
+            default:
+                msg = "I am sorry. " + this.validValuesText(prompt);
+                break
+        }
+        return msg;
+    }
+
+    private validValuesText(prompt: PromptContext): string {
+        //TODO: need to internationalize this method    
+        let txt: string;
+        let first: boolean;
+
+        switch (prompt.activePrompt.type) {
+            case PromptType.yesNo:
+                txt = "Only yes/no - true/false responses are valid.";
+                break;
+            case PromptType.options:
+                txt = "Only one of the given choices is valid.";
+                break;
+            case PromptType.numberRange:
+                first = true;
+                txt = "Only a numeric value ";
+                if (!isNull(prompt.activePrompt.minNumber)) {
+                    txt += `greater than ${prompt.activePrompt.minNumber} `;
+                    first = false;
+                }
+                if (!isNull(prompt.activePrompt.maxNumber)) {
+
+                    txt += (first ? "" : "and ") + `less than ${prompt.activePrompt.maxNumber} `;
+                }
+                txt += "is valid.";
+
+                break;
+            case PromptType.dateRange:
+                first = true;
+                txt = "Only a date ";
+                if (!isNull(prompt.activePrompt.minDate)) {
+                    txt += `later than ${prompt.activePrompt.minNumber} `;
+                    first = false;
+                }
+                if (!isNull(prompt.activePrompt.maxDate)) {
+
+                    txt += (first ? "" : "and ") + `earlier than ${prompt.activePrompt.maxDate} `;
+                }
+                txt += "is valid.";
+                break;
+        }
+
+        return txt;
+    }
+
 }

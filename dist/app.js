@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 var botbuilder_1 = require("botbuilder");
 var botbuilder_node_1 = require("botbuilder-node");
+//import { recognizeChoices, Choice } from 'botbuilder-choices';
 var prompt_1 = require("./prompt");
-var util_1 = require("util");
 var MAX_RETRIES = 3; //must be greater than 0
 // Initialize bot by passing it adapter
 var bot = new botbuilder_1.Bot(new botbuilder_node_1.ConsoleAdapter().listen())
@@ -15,7 +15,8 @@ bot.onReceive(function (context) {
         var cs = prompt_1.PromptCycle.currentStatus(context);
         switch (cs) {
             case prompt_1.PromptStatus.noPrompt:
-                prompt_1.PromptCycle.promptForDate(context, "When were you born?");
+                var c = [{ value: "yesterday", synonyms: ["ier", "ayer"] }, { value: "today", synonyms: ["hoy", "ahora"] }];
+                prompt_1.PromptCycle.promptForOption(context, "When were you born?", c);
                 break;
             case prompt_1.PromptStatus.canceled:
                 context.reply("you canceled!");
@@ -27,16 +28,7 @@ bot.onReceive(function (context) {
                 context.reply("In progress... why am I here?");
                 break;
             case prompt_1.PromptStatus.validated:
-                var response = void 0;
-                if (!util_1.isUndefined(context.state.conversation.prompt.activePrompt.responses[0].resolution.value)) {
-                    response = context.state.conversation.prompt.activePrompt.responses[0].resolution.value;
-                }
-                else if (!util_1.isUndefined(context.state.conversation.prompt.activePrompt.responses[0].resolution.values)) {
-                    response = context.state.conversation.prompt.activePrompt.responses[0].resolution.values[0].value;
-                }
-                else {
-                    response = "[?]";
-                }
+                var response = prompt_1.PromptCycle.simpleResponse(context);
                 context.reply("you successfully replied \"" + response + "\" to the question. Now onto greater things...");
                 break;
         }

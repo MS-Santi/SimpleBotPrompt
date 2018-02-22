@@ -2,8 +2,8 @@ import { Bot, MemoryStorage, BotStateManager } from 'botbuilder';
 import { ConsoleAdapter } from "botbuilder-node";
 import { DateTimeRecognizer, NumberRecognizer, NumberWithUnitRecognizer, OptionsRecognizer, Culture } from "@microsoft/recognizers-text-suite";
 import { Recognizer, IModel, ModelResult } from "@microsoft/recognizers-text"
-import { recognizeChoices, Choice } from 'botbuilder-choices';
-import { PromptCycle, PromptStatus } from './prompt';
+//import { recognizeChoices, Choice } from 'botbuilder-choices';
+import { PromptCycle, PromptStatus, Choice } from './prompt';
 import { isUndefined } from 'util';
 
 const MAX_RETRIES: number = 3;  //must be greater than 0
@@ -22,8 +22,8 @@ bot.onReceive((context) => {
         let cs: PromptStatus = PromptCycle.currentStatus(context);
         switch (cs) {
             case PromptStatus.noPrompt:
-
-                PromptCycle.promptForDate(context, "When were you born?");
+                let c: Choice[] = [{ value: "yesterday", synonyms: ["ier", "ayer"] }, { value: "today", synonyms: ["hoy", "ahora"] }]
+                PromptCycle.promptForOption(context, "When were you born?", c);
 
                 break;
             case PromptStatus.canceled:
@@ -39,25 +39,17 @@ bot.onReceive((context) => {
                 break;
 
             case PromptStatus.validated:
-                let response: string;
-                if (!isUndefined((<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.value)) {
-                    response = (<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.value;
-                }
-                else if (!isUndefined((<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.values)) {
-                        response = (<ModelResult>context.state.conversation.prompt.activePrompt.responses[0]).resolution.values[0].value;
-                    }
-                    else {
-                        response = "[?]";
-                    }
-                    context.reply(`you successfully replied "${response}" to the question. Now onto greater things...`);
+                let response: string = PromptCycle.simpleResponse(context);
+                
+                context.reply(`you successfully replied "${response}" to the question. Now onto greater things...`);
 
-                    break;
-                }
+                break;
         }
+    }
     else {
-            if (context.request.type === 'conversationUpdate' && context.request.membersAdded[0].name === 'User') {
-                debugger;
-            }
-
+        if (context.request.type === 'conversationUpdate' && context.request.membersAdded[0].name === 'User') {
+            debugger;
         }
-    });
+
+    }
+});
