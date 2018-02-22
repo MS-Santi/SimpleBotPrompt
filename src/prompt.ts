@@ -177,37 +177,37 @@ export class PromptCycle implements Middleware {
 
     public static promptForOption(
         ctx: BotContext,
-        txt: string,
+        promptText: string,
         choices: Choice[]) {
 
         let prompt: Prompt = new Prompt();
 
         prompt.type = PromptType.options;
-        prompt.text = txt;
+        prompt.text = promptText;
         prompt.currentAttemp = 0;
         prompt.choices = choices;
         ctx.state.conversation.prompt.activePrompt = prompt;
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
 
-        ctx.reply(txt);
+        ctx.reply(promptText);
 
     }
 
     public static promptForYesNo(
         ctx: BotContext,
-        txt: string) {
+        promptText: string) {
 
 
         let prompt: Prompt = new Prompt();
 
         prompt.type = PromptType.yesNo;
-        prompt.text = txt;
+        prompt.text = promptText;
         prompt.currentAttemp = 0;
         ctx.state.conversation.prompt.activePrompt = prompt;
 
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
 
-        ctx.reply(txt);
+        ctx.reply(promptText);
     }
 
     public static currentStatus(ctx: BotContext): PromptStatus {

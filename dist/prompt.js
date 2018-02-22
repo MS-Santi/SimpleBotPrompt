@@ -136,24 +136,24 @@ var PromptCycle = /** @class */ (function () {
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
         ctx.reply(promptText);
     };
-    PromptCycle.promptForOption = function (ctx, txt, choices) {
+    PromptCycle.promptForOption = function (ctx, promptText, choices) {
         var prompt = new Prompt();
         prompt.type = PromptType.options;
-        prompt.text = txt;
+        prompt.text = promptText;
         prompt.currentAttemp = 0;
         prompt.choices = choices;
         ctx.state.conversation.prompt.activePrompt = prompt;
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
-        ctx.reply(txt);
+        ctx.reply(promptText);
     };
-    PromptCycle.promptForYesNo = function (ctx, txt) {
+    PromptCycle.promptForYesNo = function (ctx, promptText) {
         var prompt = new Prompt();
         prompt.type = PromptType.yesNo;
-        prompt.text = txt;
+        prompt.text = promptText;
         prompt.currentAttemp = 0;
         ctx.state.conversation.prompt.activePrompt = prompt;
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
-        ctx.reply(txt);
+        ctx.reply(promptText);
     };
     PromptCycle.currentStatus = function (ctx) {
         if (!util_1.isUndefined(ctx.state.conversation.prompt)) {

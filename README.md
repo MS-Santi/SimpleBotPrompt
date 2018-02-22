@@ -12,11 +12,11 @@ context.status.conversation.prompt
 
 This location is persisted with the rest of the state for the conversation. It should be considered read-only so as not to interfere with the prompt cycle.
 
-##Usage
+## Usage
 It is simple to create a prompt. There are three steps:
-1.- Register the PromptCycle middleware component.
-2.- Create a Prompt
-3.- Evaluate the result
+1. Register the PromptCycle middleware component
+1. Create a Prompt
+1. Evaluate the result
 
 ### Registering the middleware
 
@@ -55,7 +55,7 @@ export class PromptCycle implements Middleware {
 ```
 ### Creating a prompt
 
-Use one of the helper functions to create a prompt. In all cases, the parameter txt is the question or prompt that will be presented to the user. Other parameters should be self-explanatory:
+Use one of the helper functions to create a prompt. Parameters should be self-explanatory:
 
 ```javascript
     public static promptForNumber(
@@ -117,4 +117,4 @@ or
 context.state.conversation.prompt.responses
 ```
 The first method will return the first response evaluated by the prompt cycle.
-If there are more than one response possible, then you can evaluate the array of **response* objects.
+If there are more than one response possible, then you can evaluate the array of **response** objects.
