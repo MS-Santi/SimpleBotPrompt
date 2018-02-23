@@ -2,13 +2,14 @@
 import { Middleware, Activity, ConversationResourceResponse } from 'botbuilder';
 import { NumberRecognizer, DateTimeRecognizer, OptionsRecognizer, Culture } from '@microsoft/recognizers-text-suite';
 import { ModelResult, IModel } from '@microsoft/recognizers-text';
-import { isUndefined, isNull } from 'util';
+import { isUndefined, isNull, log } from 'util';
 
 export enum PromptType {
     numberRange
     , dateRange
     , options
     , yesNo
+    , freeText
 }
 
 export enum PromptStatus {
@@ -19,7 +20,7 @@ export enum PromptStatus {
     , canceled //One of the safe words have been invoked; terminal state
 }
 
-export class Choice {
+export class Option {
     value: string;
     synonyms: string[] = <string[]>[];
 }
@@ -33,7 +34,7 @@ export class Prompt {
     maxNumber: number = null;
     minDate: Date = null;
     maxDate: Date = null;
-    choices: Choice[];
+    options: Option[];
     regExp: string;
 }
 
@@ -122,10 +123,10 @@ export class PromptCycle implements Middleware {
     }
 
     public static promptForNumber(
-        ctx: BotContext,
-        promptText: string,
-        minValue: number = null,
-        maxValue: number = null) {
+        ctx: BotContext
+        , promptText: string
+        , minValue: number = null
+        , maxValue: number = null) {
 
         let rangePrompt: Prompt;
 
@@ -147,10 +148,10 @@ export class PromptCycle implements Middleware {
     }
 
     public static promptForDate(
-        ctx: BotContext,
-        promptText: string,
-        minValue: Date = null,
-        maxValue: Date = null) {
+        ctx: BotContext
+        , promptText: string
+        , minValue: Date = null
+        , maxValue: Date = null) {
 
         let rangePrompt: Prompt;
 
@@ -173,16 +174,16 @@ export class PromptCycle implements Middleware {
     }
 
     public static promptForOption(
-        ctx: BotContext,
-        promptText: string,
-        choices: Choice[]) {
+        ctx: BotContext
+        , promptText: string
+        , options: Option[]) {
 
         let prompt: Prompt = new Prompt();
 
         prompt.type = PromptType.options;
         prompt.text = promptText;
         prompt.currentAttemp = 0;
-        prompt.choices = choices;
+        prompt.options = options;
         ctx.state.conversation.prompt.activePrompt = prompt;
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
 
@@ -191,13 +192,29 @@ export class PromptCycle implements Middleware {
     }
 
     public static promptForYesNo(
-        ctx: BotContext,
-        promptText: string) {
+        ctx: BotContext
+        , promptText: string) {
 
 
         let prompt: Prompt = new Prompt();
 
         prompt.type = PromptType.yesNo;
+        prompt.text = promptText;
+        prompt.currentAttemp = 0;
+        ctx.state.conversation.prompt.activePrompt = prompt;
+
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+
+        ctx.reply(promptText);
+    }
+
+    public static promptForFreeText(
+        ctx: BotContext
+        , promptText: string) {
+
+        let prompt: Prompt = new Prompt();
+
+        prompt.type = PromptType.freeText;
         prompt.text = promptText;
         prompt.currentAttemp = 0;
         ctx.state.conversation.prompt.activePrompt = prompt;
@@ -230,6 +247,10 @@ export class PromptCycle implements Middleware {
         return response;
     }
 
+    public static allResponses(ctx: BotContext): ModelResult[] {
+        return ctx.state.conversation.prompt.activePrompt.responses;;
+    }
+
     private safeWordInvoked(utterance: string): boolean {
 
         if ((this.safeWords.filter(word => word.toLowerCase().trim() === utterance.toLowerCase().trim()).length) > 0) {
@@ -253,23 +274,46 @@ export class PromptCycle implements Middleware {
                 validResponses = this.checkDateRange(prompt, model.parse(utterance));
                 break;
             case PromptType.options:
-                validResponses = this.recognizeChoices(utterance, prompt.activePrompt.choices);
+                validResponses = this.recognizeOptions(utterance, prompt.activePrompt.options);
                 break;
             case PromptType.yesNo:
                 model = OptionsRecognizer.instance.getBooleanModel(this.defaultCulture);
                 validResponses = model.parse(utterance);
+                break;
+            case PromptType.freeText:
+                let r: ModelResult = new ModelResult();
+
+                //use the textual response as the first result
+                r.text = utterance;
+                r.resolution = { value: utterance, typeName: 'string' };
+                validResponses = <ModelResult[]>[];
+                validResponses.push(r);
+
+                //run it through other models to provide other possible responses
+                let models: IModel[] = <IModel[]>[];
+
+                models.push(NumberRecognizer.instance.getNumberModel(this.defaultCulture));
+                models.push(DateTimeRecognizer.instance.getDateTimeModel(this.defaultCulture));
+                models.push(OptionsRecognizer.instance.getBooleanModel(this.defaultCulture));
+
+                models.forEach((m) => {
+                    m.parse(utterance).forEach((r => {
+                        validResponses.push(r);
+                    }));
+                });
+
                 break;
         }
 
         return validResponses;
     }
 
-    private recognizeChoices(response: string, choices: Choice[]): ModelResult[] {
+    private recognizeOptions(response: string, options: Option[]): ModelResult[] {
 
 
         let results: ModelResult[] = <ModelResult[]>[];
 
-        let matches = choices.map((item: Choice) => {
+        let matches = options.map((item: Option) => {
             if (response.toLowerCase().trim().indexOf(item.value.toLowerCase().trim()) >= 0 ||
                 item.synonyms.map((syn: string) => {
                     return response.toLowerCase().trim().indexOf(syn.toLowerCase().trim()) >= 0
@@ -285,7 +329,7 @@ export class PromptCycle implements Middleware {
             if (!isNull(item)) {
                 let mr = new ModelResult();
                 mr.text = item.value;
-                mr.typeName = 'choices';
+                mr.typeName = 'options';
                 mr.resolution = { value: item.value };
 
                 results.push(mr);
@@ -312,11 +356,24 @@ export class PromptCycle implements Middleware {
 
         let inRange: ModelResult[] = [];
         responses.forEach((r) => {
-            if (r.resolution.values[0].type === 'date') { //ignore results that render a Period. Only accept dates.
-                if ((isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
-                    (isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
+            if (!isUndefined(r.resolution.values)) {
+                if (r.resolution.values[0].type === 'date') { //ignore results that render a Period. Only accept dates.
+                    if ((isNull(prompt.activePrompt.minDate) || r.resolution.values[0].value >= prompt.activePrompt.minDate) &&
+                        (isNull(prompt.activePrompt.maxDate) || r.resolution.values[0].value <= prompt.activePrompt.maxDate)) {
 
-                    inRange.push(r);
+                        inRange.push(r);
+                    }
+                }
+            }
+            else {
+                if (!isUndefined(r.resolution.value)) {
+                    if (r.resolution.value.type === 'date') { //ignore results that render a Period. Only accept dates.
+                        if ((isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
+                            (isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
+    
+                            inRange.push(r);
+                        }
+                    }
                 }
             }
         })
@@ -357,7 +414,7 @@ export class PromptCycle implements Middleware {
             case PromptType.options:
                 first = true;
                 txt = 'Valid options are: [';
-                prompt.activePrompt.choices.forEach((c) => {
+                prompt.activePrompt.options.forEach((c) => {
                     txt += [(first ? '"' : '", "') + c.value, first = false][0];
                 })
                 txt += '"].';
@@ -380,7 +437,7 @@ export class PromptCycle implements Middleware {
                 first = true;
                 txt = 'Only a date ';
                 if (!isNull(prompt.activePrompt.minDate)) {
-                    txt += `later than ${prompt.activePrompt.minNumber} `;
+                    txt += `later than ${prompt.activePrompt.minDate} `;
                     first = false;
                 }
                 if (!isNull(prompt.activePrompt.maxDate)) {
@@ -390,8 +447,6 @@ export class PromptCycle implements Middleware {
                 txt += 'is valid.';
                 break;
         }
-
         return txt;
     }
-
 }

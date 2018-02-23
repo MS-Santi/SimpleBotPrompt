@@ -14,11 +14,14 @@ bot.onReceive(function (context) {
         var cs = prompt_1.PromptCycle.currentStatus(context);
         switch (cs) {
             case prompt_1.PromptStatus.noPrompt:
+                //// Prompt for a Number
                 //PromptCycle.promptForNumber(context, 'How old are you', 1, 120);
-                var c = [{ value: 'yesterday', synonyms: ['preceding day', 'ayer'] }, { value: 'today', synonyms: ['hoy', 'present day'] }];
-                prompt_1.PromptCycle.promptForOption(context, 'When did you go?', c);
-                // PromptCycle.promptForDate(context, 'When were you born?');
+                //Prompt for a limited set of options
+                //  let c: Option[] = [{ value: 'yesterday', synonyms: ['preceding day', 'ayer'] }, { value: 'today', synonyms: ['hoy', 'present day'] }]
+                //  PromptCycle.promptForOption(context, 'When did you go?', c);
+                prompt_1.PromptCycle.promptForDate(context, 'When were you born?', new Date(1890, 1, 1));
                 // PromptCycle.promptForYesNo(context, 'Do you like ice-cream?');
+                // PromptCycle.promptForFreeText(context, 'Tell me something about yourself');
                 break;
             case prompt_1.PromptStatus.canceled:
                 context.reply('You canceled!');

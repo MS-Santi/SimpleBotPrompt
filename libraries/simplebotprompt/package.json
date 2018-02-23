@@ -1,6 +1,6 @@
 {
   "name": "simplebotprompt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Simple bot prompting middleware with response validation.",
   "author": "MS-Santi <SantiagoICanepa@Hotmail.com> (https://github.com/MS-Santi)",
   "homepage": "https://github.com/MS-Santi/SimpleBotPrompt",

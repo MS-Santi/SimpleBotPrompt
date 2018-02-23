@@ -1,6 +1,6 @@
 {
   "name": "simplebotprompt",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Simple bot prompting middleware with response validation.",
   "author": "MS-Santi <SantiagoICanepa@Hotmail.com> (https://github.com/MS-Santi)",
   "homepage": "https://github.com/MS-Santi/SimpleBotPrompt",
@@ -21,6 +21,7 @@
     "@types/node": "^9.4.6",
     "botbuilder": "^4.0.0-m1.4",
     "botbuilder-node": "^4.0.0-h4.1",
+    "irish-pub": "^0.2.0",
     "typescript": "^2.7.2"
   },
   "devDependencies": {

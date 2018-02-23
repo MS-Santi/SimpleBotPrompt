@@ -86,9 +86,6 @@ class PromptCycle {
         }
     }
     postActivity(ctx, activities, next) {
-        // 
-        //        if ([PromptStatus.canceled, PromptStatus.failed, PromptStatus.validated, PromptStatus.noPrompt]
-        //                .filter(() => ctx.state.conversation.prompt.activePrompt.status).length > 0) {
         if (ctx.state.conversation.prompt.status === PromptStatus.noPrompt ||
             ctx.state.conversation.prompt.status === PromptStatus.validated ||
             ctx.state.conversation.prompt.status === PromptStatus.canceled ||

@@ -9,6 +9,7 @@ var PromptType;
     PromptType[PromptType["dateRange"] = 1] = "dateRange";
     PromptType[PromptType["options"] = 2] = "options";
     PromptType[PromptType["yesNo"] = 3] = "yesNo";
+    PromptType[PromptType["freeText"] = 4] = "freeText";
 })(PromptType = exports.PromptType || (exports.PromptType = {}));
 var PromptStatus;
 (function (PromptStatus) {
@@ -18,13 +19,13 @@ var PromptStatus;
     PromptStatus[PromptStatus["failed"] = 3] = "failed"; //The retry times has been reached; terminal state
     PromptStatus[PromptStatus["canceled"] = 4] = "canceled"; //One of the safe words have been invoked; terminal state
 })(PromptStatus = exports.PromptStatus || (exports.PromptStatus = {}));
-var Choice = /** @class */ (function () {
-    function Choice() {
+var Option = /** @class */ (function () {
+    function Option() {
         this.synonyms = [];
     }
-    return Choice;
+    return Option;
 }());
-exports.Choice = Choice;
+exports.Option = Option;
 var Prompt = /** @class */ (function () {
     function Prompt() {
         this.minNumber = null;
@@ -92,9 +93,6 @@ var PromptCycle = /** @class */ (function () {
         }
     };
     PromptCycle.prototype.postActivity = function (ctx, activities, next) {
-        // 
-        //        if ([PromptStatus.canceled, PromptStatus.failed, PromptStatus.validated, PromptStatus.noPrompt]
-        //                .filter(() => ctx.state.conversation.prompt.activePrompt.status).length > 0) {
         if (ctx.state.conversation.prompt.status === PromptStatus.noPrompt ||
             ctx.state.conversation.prompt.status === PromptStatus.validated ||
             ctx.state.conversation.prompt.status === PromptStatus.canceled ||
@@ -135,12 +133,12 @@ var PromptCycle = /** @class */ (function () {
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
         ctx.reply(promptText);
     };
-    PromptCycle.promptForOption = function (ctx, promptText, choices) {
+    PromptCycle.promptForOption = function (ctx, promptText, options) {
         var prompt = new Prompt();
         prompt.type = PromptType.options;
         prompt.text = promptText;
         prompt.currentAttemp = 0;
-        prompt.choices = choices;
+        prompt.options = options;
         ctx.state.conversation.prompt.activePrompt = prompt;
         ctx.state.conversation.prompt.status = PromptStatus.inProgress;
         ctx.reply(promptText);
@@ -148,6 +146,15 @@ var PromptCycle = /** @class */ (function () {
     PromptCycle.promptForYesNo = function (ctx, promptText) {
         var prompt = new Prompt();
         prompt.type = PromptType.yesNo;
+        prompt.text = promptText;
+        prompt.currentAttemp = 0;
+        ctx.state.conversation.prompt.activePrompt = prompt;
+        ctx.state.conversation.prompt.status = PromptStatus.inProgress;
+        ctx.reply(promptText);
+    };
+    PromptCycle.promptForFreeText = function (ctx, promptText) {
+        var prompt = new Prompt();
+        prompt.type = PromptType.freeText;
         prompt.text = promptText;
         prompt.currentAttemp = 0;
         ctx.state.conversation.prompt.activePrompt = prompt;
@@ -172,6 +179,10 @@ var PromptCycle = /** @class */ (function () {
         }
         return response;
     };
+    PromptCycle.allResponses = function (ctx) {
+        return ctx.state.conversation.prompt.activePrompt.responses;
+        ;
+    };
     PromptCycle.prototype.safeWordInvoked = function (utterance) {
         if ((this.safeWords.filter(function (word) { return word.toLowerCase().trim() === utterance.toLowerCase().trim(); }).length) > 0) {
             return true;
@@ -191,18 +202,36 @@ var PromptCycle = /** @class */ (function () {
                 validResponses = this.checkDateRange(prompt, model.parse(utterance));
                 break;
             case PromptType.options:
-                validResponses = this.recognizeChoices(utterance, prompt.activePrompt.choices);
+                validResponses = this.recognizeOptions(utterance, prompt.activePrompt.options);
                 break;
             case PromptType.yesNo:
                 model = recognizers_text_suite_1.OptionsRecognizer.instance.getBooleanModel(this.defaultCulture);
                 validResponses = model.parse(utterance);
                 break;
+            case PromptType.freeText:
+                var r = new recognizers_text_1.ModelResult();
+                //use the textual response as the first result
+                r.text = utterance;
+                r.resolution = { value: utterance, typeName: 'string' };
+                validResponses = [];
+                validResponses.push(r);
+                //run it through other models to provide other possible responses
+                var models = [];
+                models.push(recognizers_text_suite_1.NumberRecognizer.instance.getNumberModel(this.defaultCulture));
+                models.push(recognizers_text_suite_1.DateTimeRecognizer.instance.getDateTimeModel(this.defaultCulture));
+                models.push(recognizers_text_suite_1.OptionsRecognizer.instance.getBooleanModel(this.defaultCulture));
+                models.forEach(function (m) {
+                    m.parse(utterance).forEach((function (r) {
+                        validResponses.push(r);
+                    }));
+                });
+                break;
         }
         return validResponses;
     };
-    PromptCycle.prototype.recognizeChoices = function (response, choices) {
+    PromptCycle.prototype.recognizeOptions = function (response, options) {
         var results = [];
-        var matches = choices.map(function (item) {
+        var matches = options.map(function (item) {
             if (response.toLowerCase().trim().indexOf(item.value.toLowerCase().trim()) >= 0 ||
                 item.synonyms.map(function (syn) {
                     return response.toLowerCase().trim().indexOf(syn.toLowerCase().trim()) >= 0;
@@ -217,7 +246,7 @@ var PromptCycle = /** @class */ (function () {
             if (!util_1.isNull(item)) {
                 var mr = new recognizers_text_1.ModelResult();
                 mr.text = item.value;
-                mr.typeName = 'choices';
+                mr.typeName = 'options';
                 mr.resolution = { value: item.value };
                 results.push(mr);
             }
@@ -237,10 +266,22 @@ var PromptCycle = /** @class */ (function () {
     PromptCycle.prototype.checkDateRange = function (prompt, responses) {
         var inRange = [];
         responses.forEach(function (r) {
-            if (r.resolution.values[0].type === 'date') {
-                if ((util_1.isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
-                    (util_1.isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
-                    inRange.push(r);
+            if (!util_1.isUndefined(r.resolution.values)) {
+                if (r.resolution.values[0].type === 'date') {
+                    if ((util_1.isNull(prompt.activePrompt.minDate) || r.resolution.values[0].value >= prompt.activePrompt.minDate) &&
+                        (util_1.isNull(prompt.activePrompt.maxDate) || r.resolution.values[0].value <= prompt.activePrompt.maxDate)) {
+                        inRange.push(r);
+                    }
+                }
+            }
+            else {
+                if (!util_1.isUndefined(r.resolution.value)) {
+                    if (r.resolution.value.type === 'date') {
+                        if ((util_1.isNull(prompt.activePrompt.minDate) || r.resolution.value >= prompt.activePrompt.minDate) &&
+                            (util_1.isNull(prompt.activePrompt.maxDate) || r.resolution.value <= prompt.activePrompt.maxDate)) {
+                            inRange.push(r);
+                        }
+                    }
                 }
             }
         });
@@ -274,7 +315,7 @@ var PromptCycle = /** @class */ (function () {
             case PromptType.options:
                 first = true;
                 txt = 'Valid options are: [';
-                prompt.activePrompt.choices.forEach(function (c) {
+                prompt.activePrompt.options.forEach(function (c) {
                     txt += [(first ? '"' : '", "') + c.value, first = false][0];
                 });
                 txt += '"].';
@@ -295,7 +336,7 @@ var PromptCycle = /** @class */ (function () {
                 first = true;
                 txt = 'Only a date ';
                 if (!util_1.isNull(prompt.activePrompt.minDate)) {
-                    txt += "later than " + prompt.activePrompt.minNumber + " ";
+                    txt += "later than " + prompt.activePrompt.minDate + " ";
                     first = false;
                 }
                 if (!util_1.isNull(prompt.activePrompt.maxDate)) {

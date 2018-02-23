@@ -22,62 +22,68 @@ There are three steps:
 
 ### Registering the middleware
 
-The PromptCycle middleware module must be registered just like all other middleware:
+The PromptCycle middleware module must be registered during the creation of the bot, like in the following example:
 
 ```javascript
 const bot = new Bot(new ConsoleAdapter().listen())
-    .use(new PromptCycle(3, ['cancel', 'stop']))
+    .use(new PromptCycle(MAX_RETRIES, ['cancel', 'stop'], Culture.English))
     .use(new MemoryStorage())
     .use(new BotStateManager());
 ```
-You can use three parameters as defined in the class:
+The parameters in the constructor configure the options:
 
 ```javascript
-export class PromptCycle implements Middleware {
-    private maxRetries: number;
-    private safeWords: string[];
-    private defaultCulture: string;
 
-    /**
-     * Creates a new instance of an `PromptCycle` middleware.
-     * @param maxRetries Number of times the prompt will be repeated before considered failed.
-     * @param safeWords keywords that will stop the prompt cycle
-     * @param defaultCulture culture used for evaluation of responses
-     */
+    //  * @param maxRetries:     Number of times the prompt will be repeated before considered failed.
+    //  * @param safeWords:      Keywords that will stop the prompt cycle
+    //  * @param defaultCulture: Culture used for evaluation of responses
     
-    constructor(maxRetries: number = 3, safeWords: string[] = <string[]>[], defaultCulture = Culture.English) {
-        this.maxRetries = maxRetries;
-        this.safeWords = safeWords;
-        this.defaultCulture = defaultCulture;
-    }
-.
-.
-.
-}
 ```
 ### Creating a prompt
 
-Use one of the helper functions to create a prompt. Parameters should be self-explanatory:
+Creating a prompt is very simple. Just use the provided helper functions:
 
 ```javascript
+bot.onReceive((context) => {
+    if (context.request.type === 'message') {
+        if (PromptCycle.currentStatus(context) === PromptStatus.noPrompt) {
+            PromptCycle.promptForDate(context, 'When were you born?', new Date(1890,1,1));
+        }
+        .
+        .
+        .
+    }
+    .
+    .
+    .
+}
+```
+
+Different helper functions help prompt for different types of information. Parameters should be self-explanatory:
+
+```javascript
+    public static promptForDate(
+        ctx: BotContext,
+        promptText: string,
+        minValue: Date = null,
+        maxValue: Date = null) {...}       
+
     public static promptForNumber(
         ctx: BotContext,
         promptText: string,
         minValue: number = null,
         maxValue: number = null) {...}
 
-    public static promptForDate(
-        ctx: BotContext,
-        promptText: string,
-        minValue: Date = null,
-        maxValue: Date = null) {...}        
-
     public static promptForOption(
         ctx: BotContext,
         txt: string,
-        choices: Choice[]) {...}
+        options: Option[]) {...}
 
     public static promptForYesNo(
+        ctx: BotContext,
+        txt: string) {..}
+
+    public static promptForFreeText(
         ctx: BotContext,
         txt: string) {..}
 ```
@@ -88,11 +94,6 @@ You can use:
 ```javascript
 PromptCycle.currentStatus(context)
 ```
-or
-```javascript
-context.state.conversation.prompt.status
-```
-
 
 to determine the current status of the prompt. Only terminal statuses are available since the PromptCycle will take care of any intermediate status. Terminal values for status are:
 
@@ -114,9 +115,9 @@ To determine the actual response for a prompt in **PromptStatus.validated** stat
 ```javascript
 PromptCycle.simpleResponse(context)
 ```
-or
+and
 ```javascript
-context.state.conversation.prompt.responses
+PromptCycle.allResponses(context)
 ```
 The first method will return the first response evaluated by the prompt cycle.
-If there are more than one response possible, then you can evaluate the array of **response** objects.
+Because recognizers can yield more than one response, you can evaluate the array of **response** objects using the second method.
