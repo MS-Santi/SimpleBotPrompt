@@ -1,5 +1,5 @@
 # SimpleBotPrompt
-Simple prompt middleware for BotBuilder v4
+Simple prompt middleware for BotBuilder v4.
 
 ## General Notes
 The middleware takes care of invalid responses up to the number of retries. Before and after, Bot::onReceive will take care of the conversation.
@@ -13,7 +13,9 @@ context.status.conversation.prompt
 This location is persisted with the rest of the state for the conversation. It should be considered read-only so as not to interfere with the prompt cycle.
 
 ## Usage
-It is simple to create a prompt. There are three steps:
+It is simple to create a prompt. The process can be seen in the sample at https://github.com/MS-Santi/SimpleBotPrompt/blob/master/sample/app.ts
+
+There are three steps:
 1. Register the PromptCycle middleware component
 1. Create a Prompt
 1. Evaluate the result
